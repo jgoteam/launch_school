@@ -1,42 +1,38 @@
 require 'io/console'
 
 module Displayable
-  WIDTH = 65
-
-  def text_chopper(text)
-    all_chars = text.chars
-    (0..all_chars.size - 1).step(WIDTH - 8) do |limit| # -8 for padding
-      limit.downto(0) do |idx|
-        if all_chars[idx] == ' '
-          all_chars.insert(idx, "\n")
-          break
-        end
-      end
-    end
-    all_chars.join.split("\n")
-  end
-
-  def box_top
-    puts '+' + '-' * (WIDTH - 2) + '+'
-    puts '|' + ' ' * (WIDTH - 2) + '|'
-  end
-
-  def box_bottom
-    puts '|' + ' ' * (WIDTH - 2) + '|'
-    puts '+' + '-' * (WIDTH - 2) + '+'
-    puts
-  end
-
-  def box_middle(text)
-    lines = (text.size / WIDTH).ceil + 2 # +1 to account for padding
-    chopped = text_chopper(text)
-    lines.times { |idx| puts "|#{chopped[idx].to_s.center(WIDTH - 2)}|" }
-  end
-
   def box_print(text)
     box_top
     box_middle(text)
     box_bottom
+  end
+
+  private
+
+  WIDTH = 65
+
+  def box_top
+    puts ["+#{'-' * (WIDTH - 2)}+", "|#{' ' * (WIDTH - 2)}|"]
+  end
+
+  def box_bottom
+    puts ["+#{'-' * (WIDTH - 2)}+", "\n"]
+  end
+
+  def box_middle(text)
+    lines = (text.size / WIDTH).ceil + 2 # +2 to account for padding
+    chopped = text_chopper(text)
+    lines.times { |idx| puts "|#{chopped[idx].to_s.center(WIDTH - 2)}|" }
+  end
+
+  def text_chopper(text)
+    chars = text.chars
+    (0..chars.size - 1).step(WIDTH - 8) do |limit| # -8 for padding
+      limit.downto(0) do |idx|
+        break chars.insert(idx, "\n") if chars[idx] == ' '
+      end
+    end
+    chars.join.split("\n")
   end
 end
 
@@ -104,51 +100,59 @@ class Engine
   end
 end
 
-class RpsFormatter
+class RpsStatGenerator
   def initialize(history, p1, p2)
-    @history = history
+    @total_rounds = history.size
+    @draw_count = @total_rounds - p1.score - p2.score
+    @p1_stats = history.map(&:first).tally.to_a.sort
+    @p2_stats = history.map(&:last).tally.to_a.sort
+    generate_perct(p1, p2)
+  end
+
+  attr_reader :total_rounds, :draw_count, :p1_stats, :p2_stats,
+              :p1_perct, :p2_perct, :draw_perct
+
+  private
+
+  def generate_perct(p1, p2)
+    @p1_perct = (p1.score / @total_rounds.to_f * 100).round(2)
+    @p2_perct = (p2.score / @total_rounds.to_f * 100).round(2)
+    @draw_perct = (@draw_count / @total_rounds.to_f * 100).round(2)
+  end
+end
+
+class RpsStatPrinter
+  def initialize(stats, p1, p2)
     @p1 = p1
     @p2 = p2
-    @total_rounds = @history.size
-    @draw_count = @total_rounds - @p1.score - @p2.score
-    @p1_stats = @history.map(&:first).tally.to_a.sort
-    @p2_stats = @history.map(&:last).tally.to_a.sort
+    @stats = stats
   end
 
   def show_stats
-    generate_perct
     show_w_l
     show_hand_frq
   end
 
   private
 
-  attr_writer :p1_perct, :p2_perct, :draw_perct
-
-  def generate_perct
-    @p1_perct = (@p1.score / @total_rounds.to_f * 100).round(2)
-    @p2_perct = (@p2.score / @total_rounds.to_f * 100).round(2)
-    @draw_perct = (@draw_count / @total_rounds.to_f * 100).round(2)
-  end
-
   def show_w_l
     puts "\nMatch Stats"
     puts "---------------"
-    puts "Out of #{@total_rounds} rounds..."
-    puts "\t- #{@p1.name} won #{@p1.score} / #{@total_rounds} rounds " \
-         "( #{@p1_perct} % )"
-    puts "\t- #{@p2.name} won #{@p2.score} / #{@total_rounds} rounds " \
-         "( #{@p2_perct} % )"
-    puts "\t- No one won #{@draw_count} / #{@total_rounds} rounds (Tie!) " \
-         "( #{@draw_perct} % )"
+    puts "Out of #{@stats.total_rounds} rounds..."
+    puts "\t- #{@p1.name} won #{@p1.score} / #{@stats.total_rounds} rounds " \
+         "( #{@stats.p1_perct} % )"
+    puts "\t- #{@p2.name} won #{@p2.score} / #{@stats.total_rounds} rounds " \
+         "( #{@stats.p2_perct} % )"
+    puts "\t- No one won #{@stats.draw_count} / #{@stats.total_rounds} " \
+         "rounds (Tie!) ( #{@stats.draw_perct} % )"
   end
 
   def show_hand_frq
-    [[@p1.name, @p1_stats], [@p2.name, @p2_stats]].each do |arr|
+    [[@p1.name, @stats.p1_stats], [@p2.name, @stats.p2_stats]].each do |arr|
       puts "#{arr[0]} chose..."
       arr[1].each do |hand, frq|
         puts "\t- #{hand} #{frq} time(s)" \
-             " ( #{(frq / @total_rounds.to_f * 100).round(2)} % )"
+             " ( #{(frq / @stats.total_rounds.to_f * 100).round(2)} % )"
       end
     end
     puts "---------------"
@@ -196,7 +200,8 @@ class RpsBones
   end
 
   def show_stats
-    RpsFormatter.new(history, p1, p2).show_stats
+    stats = RpsStatGenerator.new(history, p1, p2)
+    RpsStatPrinter.new(stats, p1, p2).show_stats
   end
 end
 
@@ -278,7 +283,7 @@ class RpsGame < RpsBones
 
   def game_welcome
     system('clear') || system('cls')
-    puts "Let's play #{game_name} against a computer opponent"
+    puts "Let's play #{game_name} against a computer!"
     box_print("#{game_name} rules: 'scissors cuts paper " \
               "covers rock crushes scissors'")
   end
@@ -353,7 +358,7 @@ class RpsslGame < RpsGame
 
   def game_welcome
     system('clear') || system('cls')
-    puts "Let's play #{game_name} against a computer opponent"
+    puts "Let's play #{game_name} against a computer!"
     box_print("#{game_name} rules: 'It's very simple. Scissors cuts paper, " \
               "paper covers rock, rock crushes lizard, lizard poisons Spock, " \
               "Spock smashes scissors, scissors decapitates lizard, " \
@@ -371,56 +376,40 @@ class Player
     @name = name
     @score = 0
   end
+
+  RPS_TR = { "r" => "rock", "p" => "paper", "s" => "scissors" }
+  RPSSL_TR = RPS_TR.merge({ "o" => "spock", "l" => "lizard" })
+  TR_SELECT = { "Rock, Paper, Scissors" => RPS_TR,
+                "Rock, Paper, Scissors, Spock, Lizard" => RPSSL_TR }
+  private_constant :RPS_TR, :RPSSL_TR, :TR_SELECT
 end
 
 class Human < Player
   def throw(game_name)
-    rps_throw if game_name == "Rock, Paper, Scissors"
-    rpssl_throw if game_name == "Rock, Paper, Scissors, Spock, Lizard"
+    tr = TR_SELECT[game_name]
+    key = ""
+    loop do
+      show_choices(tr)
+      key = gets.chomp.downcase
+      break if tr.keys.include?(key) || tr.values.include?(key)
+      puts "That's not a valid input. Try again."
+    end
+    @hand = tr.values.any?(key) ? key : tr[key]
   end
 
   private
 
-  def rps_throw
-    key_tr = { "r" => "rock", "p" => "paper", "s" => "scissors" }
-    key = ""
-    loop do
-      puts "(r)ock, (p)aper, or (s)cissors?"
-      key = gets.chomp
-      break if key_tr.keys.include?(key)
-      puts "That's not a valid input. Try again."
-    end
-    @hand = key_tr[key]
-  end
-
-  def rpssl_throw
-    key_tr = { "r" => "rock", "p" => "paper", "s" => "scissors",
-               "o" => "spock", "l" => "lizard" }
-    key = ""
-    loop do
-      puts "(r)ock, (p)aper, (s)cissors, sp(o)ck, (l)izard?"
-      key = gets.chomp
-      break if key_tr.keys.include?(key)
-      puts "That's not a valid input. Try again."
-    end
-    @hand = key_tr[key]
+  def show_choices(hands)
+    choices = hands.map { |letr, wrd| wrd.sub(letr, "(#{letr})") }
+    rest, last = choices.partition { |el| el != choices[-1] }
+    puts "#{rest.join(', ')} or #{last.join}?"
   end
 end
 
 class Comp < Player
   def throw(game_name)
-    rps_throw if game_name == "Rock, Paper, Scissors"
-    rpssl_throw if game_name == "Rock, Paper, Scissors, Spock, Lizard"
-  end
-
-  private
-
-  def rps_throw
-    @hand = ["rock", "paper", "scissors"].sample
-  end
-
-  def rpssl_throw
-    @hand = ["rock", "paper", "scissors", "spock", "lizard"].sample
+    tr = TR_SELECT[game_name]
+    @hand = tr.values.sample
   end
 end
 
