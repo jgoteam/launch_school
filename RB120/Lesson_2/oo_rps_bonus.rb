@@ -382,6 +382,12 @@ class Player
   TR_SELECT = { "Rock, Paper, Scissors" => RPS_TR,
                 "Rock, Paper, Scissors, Spock, Lizard" => RPSSL_TR }
   private_constant :RPS_TR, :RPSSL_TR, :TR_SELECT
+
+  private
+
+  def new_hand(hand)
+    self.hand = hand
+  end
 end
 
 class Human < Player
@@ -394,7 +400,7 @@ class Human < Player
       break if tr.keys.include?(key) || tr.values.include?(key)
       puts "That's not a valid input. Try again."
     end
-    @hand = tr.values.any?(key) ? key : tr[key]
+    tr.values.any?(key) ? new_hand(key) : new_hand(tr[key])
   end
 
   private
@@ -409,7 +415,7 @@ end
 class Comp < Player
   def throw(game_name)
     tr = TR_SELECT[game_name]
-    @hand = tr.values.sample
+    new_hand(tr.values.sample)
   end
 end
 
