@@ -9,18 +9,18 @@ module Displayable
     "-" * Displayable::WIDTH
   end
 
-  def banner_print
+  def title_banner
     system('clear') || system('cls')
-    box_print("0o0 -- Three Tater Tots -- o0o")
+    header_box("0o0 -- Three Tater Tots -- o0o")
     puts
   end
 
-  def box_print(text)
+  def header_box(text)
     box_top
-    box_cont(text)
+    info_box(text)
   end
 
-  def box_cont(text)
+  def info_box(text)
     box_middle(text)
     box_bottom
   end
@@ -35,10 +35,10 @@ module Displayable
     end
   end
 
-  def joined_print(arr)
-    rest, last = arr.partition { |el| el != arr[-1] }
+  def joiner(options)
+    rest, last = options.partition { |el| el != options[-1] }
     joined = "#{rest.join(', ')} or #{last.join} ?"
-    puts arr.size == 1 ? arr[0] : joined
+    puts options.size == 1 ? options[0] : joined
   end
 
   private
@@ -90,28 +90,27 @@ end
 
 module TttBannerable
   def high_scores_banner
-    banner_print
+    title_banner
     puts "Top 10 High Scores"
     puts "-" * 18 # str_size above
   end
 
   def turn_bonus_banner
-    banner_print
+    title_banner
     puts "Going first nets you +0 points."
-    puts "\nGoing second nets you +2500 points, " \
-         "but only if you win."
+    puts "\nGoing second nets you +1500 points."
     puts separator
   end
 
   def marker_choice_banner
-    banner_print
+    title_banner
     puts "Choose your Tater Tot:"
     puts "\n(The number 0 or the letter o)"
     puts separator
   end
 
   def turn_order_banner
-    banner_print
+    title_banner
     puts "#{players[0].name} (#{players[0].mark}) is going first."
     puts "#{players[1].name} (#{players[1].mark}) is going second."
     puts separator
@@ -125,92 +124,169 @@ module TttBannerable
   def human_turn_banner
     puts "You have #{(timer.time_left).round(2)} second(s) to move!"
     puts "\nSelect a square to place your marker:"
-    joined_print(brd.empty_squares)
+    joiner(board.empty_squares)
+  end
+
+  def game_over_banner(loss_method)
+    system('clear') || system('cls')
+    header_box("-----Game Over-----")
+    info_box(loss_method)
   end
 
   def victory_banner
     system('clear') || system('cls')
-    box_print("0oo0o WINNER WINNER NINE TATER TOT DINNER o00o")
-    box_cont("-----#{p1.name.upcase}, YOU WON!-----")
+    header_box("0oo0o WINNER WINNER NINE TATER TOT DINNER o00o")
+    info_box("-----#{player_one.name.upcase}, YOU WON!-----")
   end
 end
 
 module ProceduralAlgo
-  def algo_move(brd, mark, other_mark)
+  def algo_move(board, mark, other_mark)
     options =
-      [get_line(brd, mark), get_line(brd, other_mark),
-       try_middle(brd), check_forks(brd, mark),
-       a_threats(brd, mark), safe_move(brd)]
+      [close_line(board, mark), close_line(board, other_mark),
+       try_middle(board), check_forks(board, mark, other_mark),
+       try_opposite_corner(board, mark, other_mark), safe_move(board)]
     options.find { |choice| !choice.nil? }
   end
 
   private
 
-  def get_line(brd, marker)
+  def close_line(board, marker)
     choices =
-      brd.winning_lines.each_with_object([]) do |line, arr|
-        third = line.select { |sq| brd.squares[sq] != marker }
-        arr << third[0] if third.size == 1 && brd.squares[third[0]] == ' '
+      board.winning_lines.each_with_object([]) do |line, arr|
+        third = line.select { |sq| board.squares[sq] != marker }
+        arr << third[0] if third.size == 1 && board.squares[third[0]] == ' '
       end
     choices.sample
   end
 
-  def try_middle(brd)
-    '5' if brd.squares['5'] == ' '
+  def try_middle(board)
+    '5' if board.squares['5'] == ' '
   end
 
-  def check_forks(brd, mark)
-    return nil unless
-      brd.empty_sides.map { |sq| brd.squares[sq] }.count(' ') == 2
-    return corner_fork(brd, mark) if !corner_fork(brd, mark)
-    return side_fork(brd, mark) if !side_fork(brd, mark)
+  def check_forks(board, mark, other_mark)
+    if board.squares['5'] == mark && board.empty_corners.size == 2
+      side_fork(board, mark, other_mark)
+    elsif board.empty_sides.size == 3 && board.empty_corners.size == 3
+      corner_fork(board, mark, other_mark)
+    end
   end
 
-  def corner_fork(brd, mark)
-    atk_sides =
-      brd.empty_sides.each_with_object([]) do |a_sq, choices|
-        brd.winning_lines.each do |line|
-          marked, third = line.partition { |sq| brd.squares[sq] == mark }
-          choices << a_sq if marked.size == 1 && third.include?(a_sq)
-        end
-      end
-    atk_sides.sample
-  end
-
-  def side_fork(brd, mark)
+  def corner_fork(board, mark, other_mark)
     atk_corners =
-      brd.empty_corners.each_with_object([]) do |a_sq, choices|
-        brd.winning_lines.each do |line|
-          marked, third = line.partition { |sq| brd.squares[sq] == mark }
-          choices << a_sq if marked.size == 1 && third.include?(a_sq)
+      board.empty_corners.each_with_object([]) do |a_sq, choices|
+        board.winning_lines.each do |line|
+          marked, rest = line.partition { |sq| board.squares[sq] == mark }
+          choices << a_sq if marked.size == 1 && rest.include?(a_sq)
         end
       end
-    atk_corners.sample
+    find_threat(board, atk_corners, other_mark)
   end
 
-  def a_threats(brd, mark)
-    o_threats = []
-    brd.winning_lines.each do |line|
-      marked, third =
-        line.partition { |sq| brd.squares[sq] == mark }
-      if marked.size == 1 && third.all? { |sq| brd.squares[sq] == ' ' }
-        o_threats.push(third[0], third[1])
+  def side_fork(board, mark, other_mark)
+    atk_sides =
+      board.empty_sides.each_with_object([]) do |a_sq, choices|
+        board.winning_lines.each do |line|
+          marked, rest = line.partition { |sq| board.squares[sq] == mark }
+          choices << a_sq if marked.size == 1 && rest.include?(a_sq)
+        end
+      end
+    find_threat(board, atk_sides, other_mark)
+  end
+
+  def find_threat(board, squares, other_mark)
+    threats = []
+    board.winning_lines.each do |line|
+      squares.each do |sq|
+        threats << sq if board.squares.values_at(*line).count(other_mark) == 1
       end
     end
-    o_threats.max_by { |sq| o_threats.count(sq) }
+    threats.max_by { |sq| threats.count(sq) }
   end
 
-  def safe_move(brd)
-    brd.empty_corners.empty? ? brd.empty_sides.sample : brd.empty_corners.sample
+  def try_opposite_corner(board, mark, other_mark)
+    corner_pairs = [['1', '9'], ['3', '7']]
+    corner_pairs.each do |pair|
+      line_markers = pair.map { |sq| board.squares[sq] }
+      if line_markers.count(other_mark) == 1 &&
+         line_markers.count(" ") == 1 && board.squares['5'] == mark
+        return pair.find { |sq| board.squares[sq] == ' ' }
+      end
+    end
+    nil
+  end
+
+  def safe_move(board)
+    moves = [board.empty_corners.sample, board.empty_sides.sample]
+    moves.find { |move| !move.nil? }
+  end
+end
+
+class Engine
+  include Displayable
+
+  def start
+    core_menu
+    go_back until user_quits
+  end
+
+  def self.stop
+    puts "Thanks for playing Three Tater Tots. Goodbye!"
+    exit
+  end
+
+  private
+
+  attr_accessor :choice
+
+  def core_menu
+    title_banner
+    core_choices
+    loop do
+      self.choice = gets.chomp.to_i
+      break router if (1..4).include?(choice)
+      puts "That's not a valid choice. Try again."
+    end
+  end
+
+  def core_choices
+    core_choices = <<-HEREDOC
+    Press (1) to play Three Tater Tots
+    Press (2) to view rules
+    Press (3) to view high scores
+    Press (4) to quit
+    HEREDOC
+    puts core_choices
+  end
+
+  def go_back
+    puts "\nPress 'b' to go back to the main menu"
+    loop do
+      confirm = gets.chomp.downcase
+      break core_menu if ['b', 'back'].include?(confirm)
+      puts "Invalid input. Press 'b' to go back to main menu."
+    end
+  end
+
+  def router
+    case choice
+    when 1 then TttGame.new.play
+    when 2 then TttGame.rules
+    when 3 then TttGame.high_scores
+    when 4 then Engine.stop
+    end
+  end
+
+  def user_quits
+    choice == 4
   end
 end
 
 class Timer
-  attr_reader :elapsed, :hx
+  attr_reader :elapsed
   attr_writer :limit
 
   def initialize
-    @hx = []
     @start_time = Float::INFINITY
     @elapsed = -Float::INFINITY
     @limit = Float::INFINITY
@@ -237,8 +313,8 @@ class Timer
     elapsed > limit
   end
 
-  def save_times
-    hx << limit - elapsed
+  def time_remaining
+    limit - elapsed
   end
 
   private
@@ -252,6 +328,23 @@ class Timer
   end
 end
 
+class TttRoundScore
+  attr_reader :round, :time, :multiplier, :score
+
+  def initialize(time, round)
+    @round = round
+    @time = time
+    @multiplier = round * 100
+    @score = (time * multiplier).round
+  end
+
+  def print_info
+    puts "For Round #{round} with a #{multiplier}X multiplier..."
+    puts "\tYou had #{time.round(2)} seconds left, " \
+         "and earned #{(time * multiplier).round} points."
+  end
+end
+
 class TttScore
   include Displayable
 
@@ -259,99 +352,32 @@ class TttScore
 
   def initialize
     @total = 0
-    @all_points = []
+    @all_rounds = []
+    @turn_bonus = false
   end
 
   def turn_bonus_active
     self.turn_bonus = true
+    self.total += 1500
+  end
+
+  def add_round_score(round_score)
+    all_rounds << round_score
+    self.total += round_score.score
   end
 
   def print_detailed
     puts separator
-    all_points.each do |data|
-      round, time, multiplier = data
-      puts "For Round #{round} with a #{multiplier}X multiplier..."
-      puts "\tYou had #{time.round(2)} seconds left, " \
-           "and earned #{(time * multiplier).round} points."
-    end
-    puts "\n+2500 point Second Turn Bonus" if turn_bonus
+    all_rounds.each(&:print_info)
+    puts "\n+1500 point Second Turn Bonus" if turn_bonus
     puts separator
     puts "\nFinal Score: #{total}"
-  end
-
-  def calculate(raw)
-    raw.each_with_index do |time, idx|
-      multiplier = (idx + 1) * 100
-      self.total += (time * multiplier).round
-      all_points << [idx + 1, time, multiplier]
-    end
-    self.total += 2500 if turn_bonus
   end
 
   private
 
   attr_writer :total
-  attr_accessor :all_points, :turn_bonus
-end
-
-class Engine
-  include Displayable
-
-  def start
-    core_menu
-    go_back until user_quits
-  end
-
-  def self.stop
-    puts "Thanks for playing Three Tater Tots. Goodbye!"
-    exit
-  end
-
-  private
-
-  attr_accessor :choice
-
-  def core_menu
-    banner_print
-    show_core_choices
-    loop do
-      self.choice = gets.chomp.to_i
-      break router if (1..4).include?(choice)
-      puts "That's not a valid choice. Try again."
-    end
-  end
-
-  def show_core_choices
-    core_choices = <<-HEREDOC
-    Press (1) to play Three Tater Tots
-    Press (2) to view rules
-    Press (3) to view high scores
-    Press (4) to quit
-    HEREDOC
-    puts core_choices
-  end
-
-  def go_back
-    puts "\nPress 'b' to go back to the main menu"
-    loop do
-      confirm = gets.chomp.downcase
-      break core_menu if ['b', 'back'].include?(confirm)
-      puts "Invalid input. Press 'b' to go back to main menu."
-    end
-  end
-
-  def router
-    case choice
-    when 1 then Ttt3x3.new.play
-    when 2 then Ttt3x3.rules
-    when 3 then Ttt3x3.high_scores
-    when 4 then Engine.stop
-    end
-  end
-
-  def user_quits
-    choice == 4
-  end
+  attr_accessor :all_rounds, :turn_bonus
 end
 
 class TttGrid
@@ -362,10 +388,10 @@ class TttGrid
   BLANK_MARK = ' '
   MARKERS = ["0", "o"]
 
-  def initialize(size, p1, p2)
+  def initialize(size, player_one, player_two)
     @size = size
-    @p1 = p1
-    @p2 = p2
+    @player_one = player_one
+    @player_two = player_two
     reset
   end
 
@@ -375,7 +401,9 @@ class TttGrid
 
   def reset
     self.squares =
-      (1..size**2).each_with_object({}) { |i, hsh| hsh[i.to_s] = BLANK_MARK }
+      (1..size**2).each_with_object({}) do |sq, squares|
+        squares[sq.to_s] = BLANK_MARK
+      end
   end
 
   def empty_squares
@@ -400,13 +428,17 @@ class TttGrid
 
   def winner
     winning_lines.each do |line|
-      return p1.name if squares.values_at(*line).count(p1.mark) == size
-      return p2.name if squares.values_at(*line).count(p2.mark) == size
+      return player_one.name if line_complete?(*line, player_one.mark)
+      return player_two.name if line_complete?(*line, player_two.mark)
     end
     full? ? "No one" : nil
   end
 
   private
+
+  def line_complete?(*line, marker)
+    squares.values_at(*line).count(marker) == size
+  end
 
   def rows_and_columns
     marks = squares.keys
@@ -426,18 +458,18 @@ class TttGrid
   end
 
   attr_reader :size
-  attr_accessor :p1, :p2
+  attr_accessor :player_one, :player_two
 end
 
-class Ttt3x3
+class TttGame
   extend Displayable
   include Displayable
   extend TttBannerable
   include TttBannerable
 
-  attr_accessor :brd, :p1, :p2, :timer
+  attr_accessor :board, :player_one, :player_two, :timer
 
-  TIME_LIMITS = { 1 => 25, 2 => 20, 3 => 15, 4 => 12, 5 => 9 }
+  TIME_LIMITS = { 1 => 25, 2 => 20, 3 => 15, 4 => 11, 5 => 8 }
 
   RULES =
     "The objective of Three Tater Tots is to get through #{TIME_LIMITS.size} " \
@@ -463,9 +495,9 @@ HEREDOC
   private_constant :TIME_LIMITS, :RULES, :POINTS_INFO
 
   def initialize
-    @p1 = Human.new
-    @p2 = Comp.new
-    @players = [@p1, @p2]
+    @player_one = Human.new
+    @player_two = Comp.new
+    @players = [@player_one, @player_two]
     @round = 1
     @timer = Timer.new
   end
@@ -480,9 +512,9 @@ HEREDOC
   end
 
   def self.rules
-    banner_print
-    box_print("Rules")
-    box_cont(RULES)
+    title_banner
+    header_box("Rules")
+    info_box(RULES)
     puts POINTS_INFO
   end
 
@@ -504,17 +536,17 @@ HEREDOC
   attr_accessor :players, :round
 
   def enter_name
-    banner_print
+    title_banner
     name = ""
     loop do
       puts "Enter your name: "
       name = gets.chomp.strip
-      break if name_validator(name)
+      break if name_valid?(name)
     end
-    p1.name = name
+    player_one.name = name
   end
 
-  def name_validator(name)
+  def name_valid?(name)
     if name.size > 15
       puts "Invalid. Name must be less than 15 characters long."
     elsif name.match?(/[^A-Za-z0-9 _.\-]/)
@@ -535,25 +567,25 @@ HEREDOC
       puts "That's not a valid choice. Try again."
     end
     players.rotate! if ['n', 'no'].include?(ans)
-    p1.score.turn_bonus_active if ['n', 'no'].include?(ans)
+    player_one.score.turn_bonus_active if ['n', 'no'].include?(ans)
   end
 
   def choose_mark
     marker_choice_banner
     choice = " "
     loop do
-      joined_print(TttGrid::MARKERS)
+      joiner(TttGrid::MARKERS)
       choice = gets.chomp.strip.downcase
       break if TttGrid::MARKERS.include?(choice)
       puts "Invalid input. Try again"
     end
-    p1.mark, p2.mark =
+    player_one.mark, player_two.mark =
       TttGrid::MARKERS.partition { |el| el == choice }.map(&:first)
   end
 
   def game_begin
     turn_order_banner
-    self.brd = TttGrid.new(3, p1, p2)
+    self.board = TttGrid.new(3, player_one, player_two)
     puts "Press any key to begin"
     STDIN.getch
   end
@@ -563,15 +595,15 @@ HEREDOC
   end
 
   def won?
-    brd.winner == p1.name || brd.full?
+    board.winner == player_one.name || board.full?
   end
 
   def lost?
-    brd.winner == p2.name || timer.time_up?
+    board.winner == player_two.name || timer.time_up?
   end
 
   def loser?
-    brd.winner == p2.name || timer.time_was_up
+    board.winner == player_two.name || timer.time_was_up
   end
 
   def run_rounds
@@ -584,17 +616,17 @@ HEREDOC
 
   def pre_round
     timer.limit = TIME_LIMITS[round]
-    banner_print
-    box_print("Round #{round}")
-    box_cont("\nYou have #{TIME_LIMITS[round]} seconds to finish " \
+    title_banner
+    header_box("Round #{round}")
+    info_box("\nYou have #{TIME_LIMITS[round]} seconds to finish " \
     "the game without losing! Press any key to start round")
     STDIN.getch
   end
 
   def players_go
     loop do
-      banner_print
-      brd.draw
+      title_banner
+      board.draw
       player_goes(players[0])
       break players.rotate! if lost?
       break if won?
@@ -603,10 +635,11 @@ HEREDOC
   end
 
   def round_win
-    banner_print
-    brd.draw
-    phrase = brd.full? ? "drawing with" : "beating"
-    puts "You won round #{round} by #{phrase} #{p2.name}."
+    title_banner
+    board.draw
+    phrase =
+      board.winner == player_one.name ? "beating" : "drawing with"
+    puts "You won round #{round} by #{phrase} #{player_two.name}."
     puts "And you did it in #{timer.elapsed.round(2)} seconds!"
   end
 
@@ -619,10 +652,15 @@ HEREDOC
   def post_round
     round_win
     user_ready?
-    timer.save_times
+    save_round_score(timer.time_remaining, round)
     return if rounds_complete?
-    brd.reset
+    board.reset
     self.round += 1
+  end
+
+  def save_round_score(time_remaining, round)
+    score = TttRoundScore.new(time_remaining, round)
+    player_one.score.add_round_score(score)
   end
 
   def loss_method
@@ -630,32 +668,37 @@ HEREDOC
     time_addendum =
       "You were unable to complete round #{round} in #{TIME_LIMITS[round]} " \
       "seconds. Time elapsed: #{timer.elapsed.round(2)} seconds"
-    lost_by_game = "#{p2.name} (#{p2.mark}) got Three Tater Tots"
+    lost_by_game =
+      "#{player_two.name} (#{player_two.mark}) got Three Tater Tots"
     timer.time_up? ? lost_by_time + time_addendum : lost_by_game
   end
 
   def game_over
-    system('clear') || system('cls')
-    box_print("-----Game Over-----")
-    box_cont(loss_method)
+    game_over_banner(loss_method)
     puts
-    brd.draw
+    board.draw
     puts
+    return if round == 1
+    record_score
+    print_score
   end
 
   def victory
     victory_banner
-    p1.score.calculate(timer.hx)
     record_score
-    puts "\n#{p1.name}'s score breakdown..."
-    p1.score.print_detailed
-    puts
+    print_score
   end
 
   def record_score
     scores = File.open('high_scores.txt', 'a')
-    scores.write("#{p1.name} ", "#{p1.score.total} \n")
+    scores.write("#{player_one.name} ", "#{player_one.score.total} \n")
     scores.close
+  end
+
+  def print_score
+    puts "\n#{player_one.name}'s score breakdown..."
+    player_one.score.print_detailed
+    puts
   end
 
   def player_goes(player)
@@ -676,16 +719,16 @@ HEREDOC
     loop do
       human_turn_banner
       choice = gets.chomp.strip
-      break if brd.empty_squares.include?(choice)
+      break if board.empty_squares.include?(choice)
       puts "That's not a valid choice. Try again."
     end
-    brd.squares[choice] = players[0].mark
+    board.squares[choice] = players[0].mark
   end
 
   def comp_goes
     sleep(0.5)
-    comp_choice = p2.move(brd)
-    brd.squares[comp_choice] = players[0].mark
+    comp_choice = player_two.move(board)
+    board.squares[comp_choice] = players[0].mark
     puts "Computer chose slot #{comp_choice}"
     sleep(0.5)
   end
@@ -707,10 +750,10 @@ class Comp
     @name = ["Hash Brown", "Waffle Fry", "French Fry", "Steak Fry"].sample
   end
 
-  def move(brd)
+  def move(board)
     other_mark =
       TttGrid::MARKERS.reject { |el| el == mark }[0]
-    algo_move(brd, mark, other_mark)
+    algo_move(board, mark, other_mark)
   end
 end
 
