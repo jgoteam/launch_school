@@ -1,3 +1,25 @@
+=begin
+
+# 1
+
+[1, 2, 3].select do |num|
+  num > 5
+  'hi'
+end
+
+
+The select method is called on the array object [1, 2, 3], with the do..end block on lines 1 through 4 passed in as an argument. The select method
+  will call the given block once for each element in this array object, and will evaluate the return value of the passed block each time.
+  If the return value of the passed block is 'truthy', then that element will be selected; if the return value is 'falsey', then it will not be selected.
+  The select method will then return a new collection containing all of these selected elements.
+  Since Ruby methods return the value of the last expression in blocks, the return value of the above `select` method call will always be `truthy`,
+  and will alway be selected. Thus, the `select` method call will return a new collection, with the same elements as the array object [1, 2, 3] it
+  was called on.
+
+The return value of the select method call above will be a new array object [1, 2, 3]. Not that this array object will be a different array object
+than the array object the select method was originally called on on line 1, as select will return a new collection.
+
+
 # ['ant', 'bat', 'caterpillar'].count { |str| str.include?('z') }
 # vs.
 # ['ant', 'bat', 'caterpillar'].count do |str|

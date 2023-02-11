@@ -29,7 +29,7 @@ choice = ''
     if VALID_CHOICES.include?(choice)
       break
     else
-      prompt("That's not a valic choice.")
+      prompt("That's not a valid choice.")
     end
   end
 
