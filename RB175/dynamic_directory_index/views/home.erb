@@ -1,0 +1,27 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Index</title>
+
+    <link rel="stylesheet" href="stylesheets/pure-min.css">
+    <link rel="stylesheet" href="stylesheets/fonts.css">
+</head>
+<body>
+  <h1> <%= @dir_name %> </h1>
+  <h4>
+    <pre>
+         <a href="/">A-Z (ascending)</a>     <a href="/reverse">A-Z (descending)</a>
+    </pre>
+  </h4>
+  <h2>
+    <% @file_list.each do |file_name| %>
+    <li><a href="<%= file_name %>"><%= file_name %></a></li>
+    <% end %>
+  </h2>
+  <p></p>
+  <p></p>
+</body>
+</html>

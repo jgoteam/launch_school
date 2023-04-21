@@ -1,0 +1,12 @@
+
+<%= params[:name] %>
+  <ul>
+    <% @user_data[params[:name].to_sym].each do |data| %>
+    <li><%= data[0] %>: <%= data[1].class == Array ? joiner(data[1]) : data[1] %></li>
+    <% end %>
+  </ul>
+
+<% @others_data.each do |name, data| %>
+<a href="/<%= name %>"> <%= name %> </a>
+<p></p>
+<% end %>

@@ -1,0 +1,19 @@
+<% if params[:query] %>
+  <% if @results.empty? || @results.nil? %>
+    <h2 class="content-subhead">Sorry, no matches were found for '<%= params[:query]%>'</h2>
+  <% else %>
+    <h2 class="content-subhead">Results for '<%= params[:query]%>'</h2>
+    <ul>
+      <% @results.each do |ch_name, data| %>
+        <% ch_num, p_num, content = data %>
+        <li><%= ch_name %></li>
+        <p></p>
+        <ul>
+          <li><a href="/chapter/<%= ch_num %>#<%= p_num %>"><%= bolden_query(content, params[:query]) %></a></li>
+        </ul>
+        <p></p>
+      <% end %>
+      <p></p>
+    </ul>
+  <% end %>
+<% end %>
