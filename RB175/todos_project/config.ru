@@ -1,2 +1,2 @@
 require './todo'
-run Sinatra::Application
+run Puma::Application
