@@ -1,0 +1,30 @@
+<section id="todos">
+  <header>
+    <h2> Editing '<%= @list[:name] %>' </h2>
+    <ul>
+      <form action="/lists/<%= params[:id] %>/delete" method="POST">
+        <button type="submit" class="delete"> Delete List </button>
+      </form>
+    </ul>
+  </header>
+</section>
+
+<form action="/lists/<%= params[:id] %>/edit" method="POST">
+  <dl>
+    <dt>
+      <% list_name = session[:lists][params[:id].to_i][:name] %>
+      <label for="list_name">Your selected list's name is <strong>'<%= list_name %>'</strong>. What's the new name? </label>
+    </dt>
+    <dd>
+      <input name="list_name" placeholder="" type="text" value="<%= @invalid_name || list_name %>" >
+    </dd>
+  </dl>
+  <fieldset class="actions">
+    <input type="submit" value="Update">
+    <a href="/lists/<%= params[:id] %>">Cancel</a>
+  </fieldset>
+</form>
+
+<% content_for :header_links do %>
+  <a href="/lists"> All Lists </a>
+<% end %>
